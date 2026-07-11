@@ -28,28 +28,33 @@ export default function HomePage() {
   const [stats, setStats] =
     useState<HomeStats>(emptyStats);
 
-  const [isLoaded, setIsLoaded] =
-    useState(false);
+  const [isCheckingSession, setIsCheckingSession] =
+    useState(true);
 
-  const [error, setError] = useState("");
+  const [error, setError] =
+    useState("");
 
   useEffect(() => {
+    let isMounted = true;
+
     async function loadHomeData() {
       try {
         setError("");
 
+        /*
+          未登入時 getSession() 會正常回傳 null，
+          不會把「尚未登入」當成頁面錯誤。
+        */
         const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
 
-        if (userError) {
-          throw new Error(
-            `無法取得登入資料：${userError.message}`,
-          );
+        if (sessionError) {
+          throw sessionError;
         }
 
-        if (!user) {
+        if (!session?.user) {
           router.replace("/login");
           return;
         }
@@ -61,6 +66,10 @@ export default function HomePage() {
           getWords(),
           getGrammarQuestions(),
         ]);
+
+        if (!isMounted) {
+          return;
+        }
 
         const wordCorrect = words.reduce(
           (total, word) =>
@@ -77,37 +86,41 @@ export default function HomePage() {
         const grammarCorrect =
           grammarQuestions.reduce(
             (total, question) =>
-              total + question.correctCount,
+              total +
+              question.correctCount,
             0,
           );
 
         const grammarWrong =
           grammarQuestions.reduce(
             (total, question) =>
-              total + question.wrongCount,
+              total +
+              question.wrongCount,
             0,
           );
 
-        const correct =
+        const totalCorrect =
           wordCorrect + grammarCorrect;
 
-        const wrong =
+        const totalWrong =
           wordWrong + grammarWrong;
 
-        const totalAnswers =
-          correct + wrong;
+        const totalAnswered =
+          totalCorrect + totalWrong;
 
         const accuracy =
-          totalAnswers > 0
+          totalAnswered > 0
             ? Math.round(
-                (correct / totalAnswers) *
+                (totalCorrect /
+                  totalAnswered) *
                   100,
               )
             : 0;
 
         const wordMistakes =
           words.filter(
-            (word) => word.wrongCount > 0,
+            (word) =>
+              word.wrongCount > 0,
           ).length;
 
         const grammarMistakes =
@@ -128,39 +141,70 @@ export default function HomePage() {
       } catch (caughtError) {
         console.error(caughtError);
 
+        if (!isMounted) {
+          return;
+        }
+
         setError(
           caughtError instanceof Error
             ? caughtError.message
             : "無法載入首頁資料。",
         );
       } finally {
-        setIsLoaded(true);
+        if (isMounted) {
+          setIsCheckingSession(false);
+        }
       }
     }
 
     void loadHomeData();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (
+          event === "SIGNED_OUT" ||
+          !session
+        ) {
+          router.replace("/login");
+        }
+      },
+    );
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, [router]);
 
   async function handleLogout() {
-    const { error: logoutError } =
-      await supabase.auth.signOut();
+    try {
+      setError("");
 
-    if (logoutError) {
+      const { error: logoutError } =
+        await supabase.auth.signOut();
+
+      if (logoutError) {
+        throw logoutError;
+      }
+
+      router.replace("/login");
+      router.refresh();
+    } catch (caughtError) {
       setError(
-        `登出失敗：${logoutError.message}`,
+        caughtError instanceof Error
+          ? caughtError.message
+          : "登出失敗。",
       );
-      return;
     }
-
-    router.replace("/login");
-    router.refresh();
   }
 
-  if (!isLoaded) {
+  if (isCheckingSession) {
     return (
       <div className="flex min-h-screen items-center justify-center px-5">
         <p className="text-sm text-slate-500">
-          載入雲端學習資料中……
+          確認登入狀態中……
         </p>
       </div>
     );
@@ -186,6 +230,16 @@ export default function HomePage() {
             className="mt-5 rounded-2xl bg-red-600 px-5 py-3 font-semibold text-white"
           >
             重新載入
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              router.replace("/login")
+            }
+            className="ml-3 mt-5 rounded-2xl border border-red-200 bg-white px-5 py-3 font-semibold text-red-600"
+          >
+            前往登入
           </button>
         </section>
       </div>
@@ -283,7 +337,7 @@ export default function HomePage() {
             <HomeCard
               href="/practice/daily"
               title="每日任務"
-              description="查看今天的單字、文法與錯題進度"
+              description="查看今天的練習進度"
               badge="Daily"
             />
           </div>
@@ -301,7 +355,9 @@ export default function HomePage() {
             href="/words/new"
             className="rounded-3xl bg-amber-50 p-5"
           >
-            <p className="text-2xl">＋</p>
+            <p className="text-2xl">
+              ＋
+            </p>
 
             <p className="mt-4 font-bold">
               新增單字
@@ -312,7 +368,9 @@ export default function HomePage() {
             href="/grammar/new"
             className="rounded-3xl bg-emerald-50 p-5"
           >
-            <p className="text-2xl">＋</p>
+            <p className="text-2xl">
+              ＋
+            </p>
 
             <p className="mt-4 font-bold">
               新增文法
