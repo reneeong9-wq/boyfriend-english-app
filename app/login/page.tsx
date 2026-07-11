@@ -16,31 +16,82 @@ export default function LoginPage() {
   const [mode, setMode] =
     useState<AuthMode>("login");
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] =
+    useState("");
 
   const [password, setPassword] =
     useState("");
 
+  const [isCheckingSession, setIsCheckingSession] =
+    useState(true);
+
   const [isSubmitting, setIsSubmitting] =
     useState(false);
 
-  const [message, setMessage] = useState("");
+  const [message, setMessage] =
+    useState("");
 
-  const [error, setError] = useState("");
+  const [error, setError] =
+    useState("");
 
   useEffect(() => {
-    async function checkUser() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    let isMounted = true;
 
-      if (user) {
-        router.replace("/");
+    async function checkSession() {
+      try {
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+
+        if (sessionError) {
+          console.error(sessionError);
+        }
+
+        if (
+          isMounted &&
+          session?.user
+        ) {
+          router.replace("/");
+          router.refresh();
+          return;
+        }
+      } finally {
+        if (isMounted) {
+          setIsCheckingSession(false);
+        }
       }
     }
 
-    void checkUser();
+    void checkSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (
+          event === "SIGNED_IN" &&
+          session?.user
+        ) {
+          router.replace("/");
+          router.refresh();
+        }
+      },
+    );
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, [router]);
+
+  function changeMode(
+    nextMode: AuthMode,
+  ) {
+    setMode(nextMode);
+    setMessage("");
+    setError("");
+  }
 
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>,
@@ -50,13 +101,20 @@ export default function LoginPage() {
     setMessage("");
     setError("");
 
-    if (!email.trim() || !password) {
-      setError("請填寫 Email 與密碼。");
+    const cleanEmail =
+      email.trim().toLowerCase();
+
+    if (!cleanEmail || !password) {
+      setError(
+        "請填寫 Email 與密碼。",
+      );
       return;
     }
 
     if (password.length < 6) {
-      setError("密碼至少需要 6 個字元。");
+      setError(
+        "密碼至少需要 6 個字元。",
+      );
       return;
     }
 
@@ -64,26 +122,51 @@ export default function LoginPage() {
       setIsSubmitting(true);
 
       if (mode === "signup") {
-        const { error: signUpError } =
-          await supabase.auth.signUp({
-            email: email.trim(),
-            password,
-          });
+        const emailRedirectTo =
+          typeof window !== "undefined"
+            ? `${window.location.origin}/login`
+            : undefined;
+
+        const {
+          data,
+          error: signUpError,
+        } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password,
+          options: {
+            emailRedirectTo,
+          },
+        });
 
         if (signUpError) {
           throw signUpError;
         }
 
+        /*
+          如果 Supabase 關閉 Email confirmation，
+          註冊後可能直接取得 session。
+        */
+        if (data.session) {
+          router.replace("/");
+          router.refresh();
+          return;
+        }
+
         setMessage(
-          "註冊成功。若 Supabase 開啟 Email confirmation，請先到信箱完成驗證。",
+          "註冊成功！請到信箱點擊驗證連結，完成後再回來登入。",
         );
 
+        setMode("login");
+        setPassword("");
         return;
       }
 
-      const { error: signInError } =
+      const {
+        data,
+        error: signInError,
+      } =
         await supabase.auth.signInWithPassword({
-          email: email.trim(),
+          email: cleanEmail,
           password,
         });
 
@@ -91,45 +174,84 @@ export default function LoginPage() {
         throw signInError;
       }
 
+      if (!data.session) {
+        throw new Error(
+          "登入成功，但沒有取得登入狀態。請重新整理後再試。",
+        );
+      }
+
       router.replace("/");
       router.refresh();
     } catch (caughtError) {
-      setError(
+      console.error(caughtError);
+
+      const errorMessage =
         caughtError instanceof Error
           ? caughtError.message
-          : "登入失敗，請稍後再試。",
-      );
+          : "登入失敗，請稍後再試。";
+
+      if (
+        errorMessage
+          .toLowerCase()
+          .includes(
+            "email not confirmed",
+          )
+      ) {
+        setError(
+          "Email 尚未驗證，請先到信箱點擊確認連結。",
+        );
+      } else if (
+        errorMessage
+          .toLowerCase()
+          .includes(
+            "invalid login credentials",
+          )
+      ) {
+        setError(
+          "Email 或密碼錯誤，請重新確認。",
+        );
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setIsSubmitting(false);
     }
   }
 
+  if (isCheckingSession) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-100 px-5">
+        <p className="text-sm text-slate-500">
+          確認登入狀態中……
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-100 px-5 py-10">
       <main className="w-full max-w-md rounded-[32px] bg-white p-6 shadow-xl">
-        <p className="text-sm text-indigo-600">
+        <p className="text-sm font-semibold text-indigo-600">
           Mengze English
         </p>
 
-        <h1 className="mt-2 text-3xl font-bold">
+        <h1 className="mt-2 text-3xl font-bold text-slate-900">
           {mode === "login"
             ? "登入學習帳號"
             : "建立學習帳號"}
         </h1>
 
         <p className="mt-2 text-sm leading-6 text-slate-500">
-          登入後，單字資料會儲存在 Supabase 雲端。
+          登入後，單字、文法與學習紀錄會同步儲存在雲端。
         </p>
 
         <div className="mt-6 grid grid-cols-2 rounded-2xl bg-slate-100 p-1">
           <button
             type="button"
-            onClick={() => {
-              setMode("login");
-              setError("");
-              setMessage("");
-            }}
-            className={`rounded-xl px-4 py-3 text-sm font-bold ${
+            onClick={() =>
+              changeMode("login")
+            }
+            className={`rounded-xl px-4 py-3 text-sm font-bold transition ${
               mode === "login"
                 ? "bg-white text-indigo-600 shadow-sm"
                 : "text-slate-500"
@@ -140,12 +262,10 @@ export default function LoginPage() {
 
           <button
             type="button"
-            onClick={() => {
-              setMode("signup");
-              setError("");
-              setMessage("");
-            }}
-            className={`rounded-xl px-4 py-3 text-sm font-bold ${
+            onClick={() =>
+              changeMode("signup")
+            }
+            className={`rounded-xl px-4 py-3 text-sm font-bold transition ${
               mode === "signup"
                 ? "bg-white text-indigo-600 shadow-sm"
                 : "text-slate-500"
@@ -160,7 +280,7 @@ export default function LoginPage() {
           className="mt-6 space-y-5"
         >
           <label className="block">
-            <span className="mb-2 block text-sm font-semibold">
+            <span className="mb-2 block text-sm font-semibold text-slate-700">
               Email
             </span>
 
@@ -168,16 +288,19 @@ export default function LoginPage() {
               type="email"
               value={email}
               onChange={(event) =>
-                setEmail(event.target.value)
+                setEmail(
+                  event.target.value,
+                )
               }
               placeholder="example@email.com"
               autoComplete="email"
+              required
               className="input-style"
             />
           </label>
 
           <label className="block">
-            <span className="mb-2 block text-sm font-semibold">
+            <span className="mb-2 block text-sm font-semibold text-slate-700">
               密碼
             </span>
 
@@ -185,7 +308,9 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(event) =>
-                setPassword(event.target.value)
+                setPassword(
+                  event.target.value,
+                )
               }
               placeholder="至少 6 個字元"
               autoComplete={
@@ -193,6 +318,8 @@ export default function LoginPage() {
                   ? "current-password"
                   : "new-password"
               }
+              minLength={6}
+              required
               className="input-style"
             />
           </label>
