@@ -23,9 +23,9 @@ export default function PracticeHomePage() {
           label="Daily mission"
           title="每日任務"
           description="完成單字、文法與錯題複習。"
-          className="bg-emerald-600 text-white"
-          labelClassName="text-emerald-100"
-          descriptionClassName="text-emerald-100"
+          className="bg-blue-600 text-white"
+          labelClassName="text-blue-100"
+          descriptionClassName="text-blued-100"
         />
 
         <PracticeCard
@@ -33,9 +33,9 @@ export default function PracticeHomePage() {
           label="Favorites"
           title="我的收藏"
           description="查看收藏的單字與文法筆記。"
-          className="bg-rose-500 text-white"
-          labelClassName="text-rose-100"
-          descriptionClassName="text-rose-100"
+          className="bg-amber-500 text-white"
+          labelClassName="text-amber-100"
+          descriptionClassName="text-amber-100"
         />
 
         <PracticeCard
@@ -43,9 +43,9 @@ export default function PracticeHomePage() {
           label="Vocabulary"
           title="單字四選一"
           description="從單字庫自動產生題目。"
-          className="bg-indigo-600 text-white"
-          labelClassName="text-indigo-100"
-          descriptionClassName="text-indigo-100"
+          className="bg-violet-600 text-white"
+          labelClassName="text-violet-100"
+          descriptionClassName="text-violet-100"
         />
 
         <PracticeCard
@@ -53,9 +53,9 @@ export default function PracticeHomePage() {
           label="Grammar"
           title="文法四選一"
           description="練習手動新增的文法題目。"
-          className="bg-slate-900 text-white"
-          labelClassName="text-slate-300"
-          descriptionClassName="text-slate-300"
+          className="bg-teal-900 text-white"
+          labelClassName="text-teal-300"
+          descriptionClassName="text-teal-100"
         />
 
         <PracticeCard
