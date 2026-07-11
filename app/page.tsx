@@ -9,14 +9,18 @@ import { getGrammarQuestions } from "../lib/grammarStorage";
 import { supabase } from "../lib/supabase";
 
 interface HomeStats {
-  wordCount: number;
+  totalWordCount: number;
+  learnedWordCount: number;
+  masteredWordCount: number;
   grammarQuestionCount: number;
   accuracy: number;
   mistakeCount: number;
 }
 
 const emptyStats: HomeStats = {
-  wordCount: 0,
+  totalWordCount: 0,
+  learnedWordCount: 0,
+  masteredWordCount: 0,
   grammarQuestionCount: 0,
   accuracy: 0,
   mistakeCount: 0,
@@ -129,8 +133,23 @@ export default function HomePage() {
               question.wrongCount > 0,
           ).length;
 
+          const learnedWordCount =
+          words.filter(
+            (word) =>
+              word.status === "learning" ||
+              word.status === "mastered",
+          ).length;
+        
+        const masteredWordCount =
+          words.filter(
+            (word) =>
+              word.status === "mastered",
+          ).length;
+        
         setStats({
-          wordCount: words.length,
+          totalWordCount: words.length,
+          learnedWordCount,
+          masteredWordCount,
           grammarQuestionCount:
             grammarQuestions.length,
           accuracy,
@@ -138,6 +157,7 @@ export default function HomePage() {
             wordMistakes +
             grammarMistakes,
         });
+
       } catch (caughtError) {
         console.error(caughtError);
 
@@ -277,13 +297,13 @@ export default function HomePage() {
 
         <div className="mt-6 grid grid-cols-2 gap-3">
           <div className="rounded-2xl bg-white/15 p-4">
-            <p className="text-sm text-indigo-100">
-              已學單字
-            </p>
+          <p className="text-sm text-indigo-100">
+  學習中單字
+</p>
 
-            <p className="mt-2 text-2xl font-bold">
-              {stats.wordCount}
-            </p>
+<p className="mt-2 text-2xl font-bold">
+  {stats.learnedWordCount}
+</p>
           </div>
 
           <div className="rounded-2xl bg-white/15 p-4">
@@ -312,7 +332,7 @@ export default function HomePage() {
             <HomeCard
               href="/practice/vocabulary"
               title="單字四選一"
-              description={`目前共有 ${stats.wordCount} 個單字`}
+              description={`單字庫共有 ${stats.totalWordCount} 個單字`}
               badge="Vocabulary"
             />
 
