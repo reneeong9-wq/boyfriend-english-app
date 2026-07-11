@@ -1,69 +1,38 @@
 "use client";
 
-import {
-  ChangeEvent,
-  useRef,
-  useState,
-} from "react";
-import {
-  downloadBackup,
-  restoreBackup,
-  type BackupData,
-} from "../../lib/backup";
+import { useState } from "react";
+import { downloadBackup } from "../../lib/backup";
 
 export default function SettingsPage() {
-  const fileInputRef =
-    useRef<HTMLInputElement>(null);
+  const [message, setMessage] =
+    useState("");
 
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] =
+    useState("");
 
-  function handleExport() {
-    setError("");
-    downloadBackup();
-    setMessage("備份檔已匯出。");
-  }
+  const [isExporting, setIsExporting] =
+    useState(false);
 
-  async function handleImport(
-    event: ChangeEvent<HTMLInputElement>,
-  ) {
-    setMessage("");
-    setError("");
-
-    const file = event.target.files?.[0];
-
-    if (!file) {
-      return;
-    }
-
+  async function handleExport() {
     try {
-      const text = await file.text();
-      const backup =
-        JSON.parse(text) as BackupData;
+      setIsExporting(true);
+      setMessage("");
+      setError("");
 
-      const confirmed = window.confirm(
-        "匯入後會覆蓋目前的單字與文法資料，確定繼續嗎？",
-      );
+      await downloadBackup();
 
-      if (!confirmed) {
-        event.target.value = "";
-        return;
-      }
-
-      restoreBackup(backup);
-
-      setMessage(
-        "資料匯入成功，請重新整理頁面。",
-      );
+      setMessage("雲端資料已成功匯出。");
     } catch (caughtError) {
+      console.error(caughtError);
+
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : "無法讀取這個備份檔。",
+          : "匯出備份失敗。",
       );
+    } finally {
+      setIsExporting(false);
     }
-
-    event.target.value = "";
   }
 
   return (
@@ -78,54 +47,39 @@ export default function SettingsPage() {
         </h1>
 
         <p className="mt-2 text-sm leading-6 text-slate-500">
-          匯出教材與學習紀錄，或從備份檔恢復資料。
+          匯出目前帳號儲存在 Supabase 的單字與文法資料。
         </p>
       </header>
 
       <section className="mt-7 rounded-3xl border border-slate-200 bg-white p-5">
         <h2 className="font-bold">
-          匯出備份
+          匯出雲端備份
         </h2>
 
         <p className="mt-2 text-sm leading-6 text-slate-500">
-          將單字、文法筆記、題目與答題次數儲存為 JSON 檔案。
+          備份檔將包含單字、文法筆記與文法題目。
         </p>
 
         <button
           type="button"
-          onClick={handleExport}
-          className="mt-5 w-full rounded-2xl bg-indigo-600 px-5 py-4 font-bold text-white"
+          disabled={isExporting}
+          onClick={() => void handleExport()}
+          className="mt-5 w-full rounded-2xl bg-indigo-600 px-5 py-4 font-bold text-white disabled:opacity-50"
         >
-          匯出資料
+          {isExporting
+            ? "正在整理資料……"
+            : "匯出資料"}
         </button>
       </section>
 
-      <section className="mt-4 rounded-3xl border border-slate-200 bg-white p-5">
-        <h2 className="font-bold">
-          匯入備份
+      <section className="mt-4 rounded-3xl border border-amber-200 bg-amber-50 p-5">
+        <h2 className="font-bold text-amber-900">
+          匯入功能暫時停用
         </h2>
 
-        <p className="mt-2 text-sm leading-6 text-slate-500">
-          匯入之前匯出的 JSON 備份檔。
+        <p className="mt-2 text-sm leading-6 text-amber-800">
+          資料已改成 Supabase 雲端格式，之後再加入安全的匯入功能。
         </p>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="application/json,.json"
-          onChange={handleImport}
-          className="hidden"
-        />
-
-        <button
-          type="button"
-          onClick={() =>
-            fileInputRef.current?.click()
-          }
-          className="mt-5 w-full rounded-2xl border border-indigo-200 bg-indigo-50 px-5 py-4 font-bold text-indigo-600"
-        >
-          選擇備份檔
-        </button>
       </section>
 
       {message && (

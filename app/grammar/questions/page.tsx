@@ -2,39 +2,99 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+
 import {
   deleteGrammarQuestion,
   getGrammarQuestions,
 } from "../../../lib/grammarStorage";
-import type { GrammarQuestion } from "../../types/grammar";
+
+import type {
+  GrammarQuestion,
+} from "../../types/grammar";
 
 export default function GrammarQuestionsPage() {
-  const [questions, setQuestions] = useState<GrammarQuestion[]>([]);
+  const [questions, setQuestions] =
+    useState<GrammarQuestion[]>([]);
 
-  function loadQuestions() {
-    setQuestions(getGrammarQuestions());
+  const [isLoaded, setIsLoaded] =
+    useState(false);
+
+  const [isDeleting, setIsDeleting] =
+    useState<string | null>(null);
+
+  const [error, setError] =
+    useState("");
+
+  async function loadQuestions() {
+    try {
+      setError("");
+
+      const cloudQuestions =
+        await getGrammarQuestions();
+
+      setQuestions(cloudQuestions);
+    } catch (caughtError) {
+      console.error(caughtError);
+
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "無法讀取文法題目。",
+      );
+    } finally {
+      setIsLoaded(true);
+    }
   }
 
   useEffect(() => {
-    loadQuestions();
+    void loadQuestions();
   }, []);
 
-  function handleDelete(question: GrammarQuestion) {
+  async function handleDelete(
+    question: GrammarQuestion,
+  ) {
     const confirmed = window.confirm(
-      `確定要刪除題目「${question.question}」嗎？`
+      `確定要刪除題目「${question.question}」嗎？`,
     );
 
     if (!confirmed) {
       return;
     }
 
-    deleteGrammarQuestion(question.id);
-    loadQuestions();
+    try {
+      setIsDeleting(question.id);
+      setError("");
+
+      await deleteGrammarQuestion(
+        question.id,
+      );
+
+      await loadQuestions();
+    } catch (caughtError) {
+      console.error(caughtError);
+
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "刪除文法題目失敗。",
+      );
+    } finally {
+      setIsDeleting(null);
+    }
+  }
+
+  if (!isLoaded) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-5">
+        <p className="text-sm text-slate-500">
+          載入雲端文法題目中……
+        </p>
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen px-5 pb-10 pt-8">
-      {/* 返回 */}
       <Link
         href="/grammar"
         className="text-sm font-medium text-slate-600"
@@ -42,10 +102,13 @@ export default function GrammarQuestionsPage() {
         ← 返回文法
       </Link>
 
-      {/* 標題 */}
       <div className="mt-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">
+          <p className="text-sm text-slate-500">
+            Grammar questions
+          </p>
+
+          <h1 className="mt-1 text-2xl font-bold">
             文法題目管理
           </h1>
 
@@ -56,13 +119,34 @@ export default function GrammarQuestionsPage() {
 
         <Link
           href="/grammar/questions/new"
-          className="rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white"
+          className="shrink-0 rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white"
         >
           ＋ 新增
         </Link>
       </div>
 
-      {/* 題目列表 */}
+      {error && (
+        <section className="mt-5 rounded-3xl bg-red-50 p-5">
+          <h2 className="font-bold text-red-700">
+            無法處理文法題目
+          </h2>
+
+          <p className="mt-2 text-sm leading-6 text-red-600">
+            {error}
+          </p>
+
+          <button
+            type="button"
+            onClick={() =>
+              void loadQuestions()
+            }
+            className="mt-4 rounded-2xl bg-red-600 px-4 py-2 text-sm font-semibold text-white"
+          >
+            重新載入
+          </button>
+        </section>
+      )}
+
       <section className="mt-7 space-y-4">
         {questions.length > 0 ? (
           questions.map((question) => (
@@ -71,51 +155,109 @@ export default function GrammarQuestionsPage() {
               className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
             >
               <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-600">
-                    {question.category} ・ {question.level}
-                  </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-600">
+                      {question.category}
+                    </span>
 
-                  <h2 className="mt-4 text-lg font-bold leading-7">
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                      {question.level}
+                    </span>
+                  </div>
+
+                  <h2 className="mt-4 break-words font-bold leading-7">
                     {question.question}
                   </h2>
                 </div>
 
-                {/* 編輯 + 刪除 */}
-                <div className="flex gap-4 shrink-0">
+                <div className="flex shrink-0 gap-3">
                   <Link
                     href={`/grammar/questions/${question.id}/edit`}
-                    className="text-sm font-semibold text-indigo-600 hover:text-indigo-800"
+                    className="text-sm font-semibold text-indigo-600"
                   >
                     編輯
                   </Link>
 
                   <button
                     type="button"
-                    onClick={() => handleDelete(question)}
-                    className="text-sm font-semibold text-red-600 hover:text-red-800"
+                    disabled={
+                      isDeleting ===
+                      question.id
+                    }
+                    onClick={() =>
+                      void handleDelete(
+                        question,
+                      )
+                    }
+                    className="text-sm font-semibold text-red-600 disabled:opacity-50"
                   >
-                    刪除
+                    {isDeleting ===
+                    question.id
+                      ? "刪除中"
+                      : "刪除"}
                   </button>
                 </div>
               </div>
 
-              {/* 正確答案 */}
-              <div className="mt-5 rounded-2xl bg-emerald-50 p-4">
-                <p className="text-xs font-semibold text-emerald-700">
-                  正確答案
-                </p>
+              <div className="mt-5 space-y-2">
+                {question.options.map(
+                  (option, index) => {
+                    const isCorrect =
+                      option ===
+                      question.correctAnswer;
 
-                <p className="mt-1 font-bold text-emerald-900">
-                  {question.correctAnswer}
-                </p>
+                    return (
+                      <div
+                        key={`${option}-${index}`}
+                        className={`rounded-2xl px-4 py-3 text-sm ${
+                          isCorrect
+                            ? "bg-emerald-50 font-semibold text-emerald-800"
+                            : "bg-slate-50 text-slate-600"
+                        }`}
+                      >
+                        <span className="mr-2 font-bold">
+                          {String.fromCharCode(
+                            65 + index,
+                          )}
+                          .
+                        </span>
+
+                        {option}
+
+                        {isCorrect && (
+                          <span className="ml-2">
+                            ✓
+                          </span>
+                        )}
+                      </div>
+                    );
+                  },
+                )}
               </div>
 
-              {/* 統計 */}
-              <div className="mt-4 flex gap-5 text-sm text-slate-500">
-                <span>✅ 答對 {question.correctCount} 次</span>
+              {question.explanation && (
+                <div className="mt-5 rounded-2xl bg-amber-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                    Explanation
+                  </p>
 
-                <span>❌ 答錯 {question.wrongCount} 次</span>
+                  <p className="mt-2 text-sm leading-6 text-amber-900">
+                    {question.explanation}
+                  </p>
+                </div>
+              )}
+
+              <div className="mt-5 flex flex-wrap gap-4 text-sm text-slate-500">
+                <span>
+                  答對{" "}
+                  {question.correctCount} 次
+                </span>
+
+                <span>
+                  答錯{" "}
+                  {question.wrongCount} 次
+                </span>
               </div>
             </article>
           ))
@@ -126,7 +268,7 @@ export default function GrammarQuestionsPage() {
             </p>
 
             <p className="mt-2 text-sm text-slate-500">
-              新增第一題開始練習吧！
+              建立第一題後，就可以開始文法測驗。
             </p>
 
             <Link

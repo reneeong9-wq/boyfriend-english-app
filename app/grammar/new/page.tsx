@@ -43,18 +43,18 @@ export default function NewGrammarNotePage() {
     }
 
     const note: GrammarNote = {
-      id: crypto.randomUUID(),
-      title: title.trim(),
-      category,
-      level,
-      explanation: explanation.trim(),
-      structure: structure.trim(),
-      example: example.trim(),
-      exampleTranslation:
-        exampleTranslation.trim(),
-      commonMistake: commonMistake.trim(),
-      createdAt: new Date().toISOString(),
-    };
+        id: crypto.randomUUID(),
+        title: title.trim(),
+        category,
+        level,
+        explanation,
+        structure,
+        example,
+        exampleTranslation,
+        commonMistake,
+        createdAt: new Date().toISOString(),
+        isFavorite: false,
+      };
 
     addGrammarNote(note);
     router.push("/grammar");

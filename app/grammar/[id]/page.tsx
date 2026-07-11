@@ -2,78 +2,117 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+
 import {
   deleteGrammarNote,
   getGrammarNoteById,
   toggleGrammarNoteFavorite,
 } from "../../../lib/grammarStorage";
+
 import type { GrammarNote } from "../../types/grammar";
 
 export default function GrammarDetailPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
 
-  const [note, setNote] = useState<GrammarNote | null>(null);
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [speechError, setSpeechError] = useState("");
+  const [note, setNote] =
+    useState<GrammarNote | null>(null);
+
+  const [isLoaded, setIsLoaded] =
+    useState(false);
+
+  const [isUpdating, setIsUpdating] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
 
   useEffect(() => {
-    const foundNote = getGrammarNoteById(params.id);
+    async function loadNote() {
+      try {
+        setError("");
 
-    setNote(foundNote ?? null);
-    setIsLoaded(true);
+        const foundNote =
+          await getGrammarNoteById(
+            params.id,
+          );
+
+        setNote(foundNote ?? null);
+      } catch (caughtError) {
+        console.error(caughtError);
+
+        setError(
+          caughtError instanceof Error
+            ? caughtError.message
+            : "無法讀取文法筆記。",
+        );
+      } finally {
+        setIsLoaded(true);
+      }
+    }
+
+    void loadNote();
   }, [params.id]);
 
-  function handleFavorite() {
-    if (!note) {
+  async function handleFavorite() {
+    if (!note || isUpdating) {
       return;
     }
 
-    const updatedNote = toggleGrammarNoteFavorite(
-      note.id,
-    );
+    try {
+      setIsUpdating(true);
+      setError("");
 
-    if (updatedNote) {
+      const updatedNote =
+        await toggleGrammarNoteFavorite(
+          note.id,
+        );
+
       setNote(updatedNote);
+    } catch (caughtError) {
+      console.error(caughtError);
+
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "收藏文法筆記失敗。",
+      );
+    } finally {
+      setIsUpdating(false);
     }
   }
 
   function speakExample() {
-    setSpeechError("");
-
     if (!note?.example) {
       return;
     }
-
-    if (!("speechSynthesis" in window)) {
-      setSpeechError(
-        "目前的瀏覽器不支援英文發音。",
+  
+    try {
+      const speech = window.speechSynthesis;
+  
+      speech.cancel();
+  
+      const utterance =
+        new SpeechSynthesisUtterance(
+          note.example,
+        );
+  
+      utterance.lang = "en-US";
+      utterance.rate = 0.82;
+      utterance.pitch = 1;
+  
+      speech.speak(utterance);
+    } catch (caughtError) {
+      console.error(caughtError);
+  
+      setError(
+        "目前瀏覽器無法播放英文發音。",
       );
-      return;
     }
-
-    window.speechSynthesis.cancel();
-
-    const utterance =
-      new SpeechSynthesisUtterance(note.example);
-
-    utterance.lang = "en-US";
-    utterance.rate = 0.82;
-    utterance.pitch = 1;
-
-    window.speechSynthesis.speak(utterance);
   }
 
-  function handleEdit() {
-    if (!note) {
-      return;
-    }
-
-    router.push(`/grammar/${note.id}/edit`);
-  }
-
-  function handleDelete() {
-    if (!note) {
+  async function handleDelete() {
+    if (!note || isUpdating) {
       return;
     }
 
@@ -85,16 +124,59 @@ export default function GrammarDetailPage() {
       return;
     }
 
-    deleteGrammarNote(note.id);
-    router.push("/grammar");
+    try {
+      setIsUpdating(true);
+      setError("");
+
+      await deleteGrammarNote(note.id);
+
+      router.push("/grammar");
+      router.refresh();
+    } catch (caughtError) {
+      console.error(caughtError);
+
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "刪除文法筆記失敗。",
+      );
+
+      setIsUpdating(false);
+    }
   }
 
   if (!isLoaded) {
     return (
       <div className="flex min-h-screen items-center justify-center px-5">
         <p className="text-sm text-slate-500">
-          載入文法筆記中……
+          載入雲端文法筆記中……
         </p>
+      </div>
+    );
+  }
+
+  if (error && !note) {
+    return (
+      <div className="min-h-screen px-5 py-10">
+        <button
+          type="button"
+          onClick={() =>
+            router.push("/grammar")
+          }
+          className="text-sm font-medium text-slate-600"
+        >
+          ← 返回文法首頁
+        </button>
+
+        <section className="mt-10 rounded-3xl bg-red-50 p-6">
+          <h1 className="font-bold text-red-700">
+            無法讀取文法筆記
+          </h1>
+
+          <p className="mt-2 text-sm leading-6 text-red-600">
+            {error}
+          </p>
+        </section>
       </div>
     );
   }
@@ -104,28 +186,22 @@ export default function GrammarDetailPage() {
       <div className="min-h-screen px-5 py-10">
         <button
           type="button"
-          onClick={() => router.push("/grammar")}
+          onClick={() =>
+            router.push("/grammar")
+          }
           className="text-sm font-medium text-slate-600"
         >
           ← 返回文法首頁
         </button>
 
-        <div className="mt-20 rounded-3xl border border-dashed border-slate-300 p-10 text-center">
-          <p className="text-lg font-bold">
+        <div className="mt-16 rounded-3xl border border-dashed border-slate-300 p-8 text-center">
+          <p className="font-bold">
             找不到這篇文法筆記
           </p>
 
           <p className="mt-2 text-sm text-slate-500">
             這篇筆記可能已經被刪除。
           </p>
-
-          <button
-            type="button"
-            onClick={() => router.push("/grammar")}
-            className="mt-6 rounded-2xl bg-indigo-600 px-5 py-3 font-semibold text-white"
-          >
-            回到文法首頁
-          </button>
         </div>
       </div>
     );
@@ -136,7 +212,9 @@ export default function GrammarDetailPage() {
       <header className="flex items-center justify-between gap-4">
         <button
           type="button"
-          onClick={() => router.push("/grammar")}
+          onClick={() =>
+            router.push("/grammar")
+          }
           className="text-sm font-medium text-slate-600"
         >
           ← 返回文法
@@ -161,14 +239,12 @@ export default function GrammarDetailPage() {
 
           <button
             type="button"
-            onClick={handleFavorite}
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl transition hover:bg-white/25"
-            aria-label={
-              note.isFavorite
-                ? "取消收藏"
-                : "加入收藏"
+            disabled={isUpdating}
+            onClick={() =>
+              void handleFavorite()
             }
-            title={
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl disabled:opacity-50"
+            aria-label={
               note.isFavorite
                 ? "取消收藏"
                 : "加入收藏"
@@ -189,9 +265,9 @@ export default function GrammarDetailPage() {
         </div>
       </section>
 
-      {speechError && (
-        <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">
-          {speechError}
+      {error && (
+        <p className="mt-4 rounded-2xl bg-red-50 p-4 text-sm text-red-700">
+          {error}
         </p>
       )}
 
@@ -251,18 +327,27 @@ export default function GrammarDetailPage() {
 
       <button
         type="button"
-        onClick={handleEdit}
-        className="mt-8 w-full rounded-2xl bg-indigo-600 px-5 py-4 font-bold text-white transition hover:bg-indigo-700"
+        onClick={() =>
+          router.push(
+            `/grammar/${note.id}/edit`,
+          )
+        }
+        className="mt-8 w-full rounded-2xl bg-indigo-600 px-5 py-4 font-bold text-white"
       >
         編輯文法筆記
       </button>
 
       <button
         type="button"
-        onClick={handleDelete}
-        className="mt-3 w-full rounded-2xl border border-red-200 bg-red-50 px-5 py-4 font-bold text-red-600 transition hover:bg-red-100"
+        disabled={isUpdating}
+        onClick={() =>
+          void handleDelete()
+        }
+        className="mt-3 w-full rounded-2xl border border-red-200 bg-red-50 px-5 py-4 font-bold text-red-600 disabled:opacity-50"
       >
-        刪除這篇文法筆記
+        {isUpdating
+          ? "處理中……"
+          : "刪除這篇文法筆記"}
       </button>
     </div>
   );

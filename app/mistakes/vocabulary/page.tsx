@@ -29,13 +29,24 @@ export default function GrammarPracticePage() {
   const [finished, setFinished] =
     useState(false);
 
-  useEffect(() => {
-    setQuestions(
-      getGrammarQuestions().sort(
-        () => Math.random() - 0.5,
-      ),
-    );
-  }, []);
+    useEffect(() => {
+        async function loadQuestions() {
+          try {
+            const grammarQuestions =
+              await getGrammarQuestions();
+      
+            setQuestions(
+              [...grammarQuestions].sort(
+                () => Math.random() - 0.5,
+              ),
+            );
+          } catch (caughtError) {
+            console.error(caughtError);
+          }
+        }
+      
+        void loadQuestions();
+      }, []);
 
   const currentQuestion =
     questions[currentIndex];

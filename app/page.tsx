@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+
 import { getWords } from "../lib/wordStorage";
 import { getGrammarQuestions } from "../lib/grammarStorage";
 import { supabase } from "../lib/supabase";
@@ -39,24 +40,27 @@ export default function HomePage() {
 
         const {
           data: { user },
+          error: userError,
         } = await supabase.auth.getUser();
+
+        if (userError) {
+          throw new Error(
+            `無法取得登入資料：${userError.message}`,
+          );
+        }
 
         if (!user) {
           router.replace("/login");
           return;
         }
 
-        const words = await getWords();
-
-        /*
-          目前 grammarStorage 仍是 localStorage 版本，
-          所以這裡暫時不加 await。
-          等文法也改成 Supabase 後，再改成：
-          const grammarQuestions =
-            await getGrammarQuestions();
-        */
-        const grammarQuestions =
-          getGrammarQuestions();
+        const [
+          words,
+          grammarQuestions,
+        ] = await Promise.all([
+          getWords(),
+          getGrammarQuestions(),
+        ]);
 
         const wordCorrect = words.reduce(
           (total, word) =>
@@ -73,16 +77,14 @@ export default function HomePage() {
         const grammarCorrect =
           grammarQuestions.reduce(
             (total, question) =>
-              total +
-              question.correctCount,
+              total + question.correctCount,
             0,
           );
 
         const grammarWrong =
           grammarQuestions.reduce(
             (total, question) =>
-              total +
-              question.wrongCount,
+              total + question.wrongCount,
             0,
           );
 
@@ -92,30 +94,36 @@ export default function HomePage() {
         const wrong =
           wordWrong + grammarWrong;
 
-        const total = correct + wrong;
+        const totalAnswers =
+          correct + wrong;
+
+        const accuracy =
+          totalAnswers > 0
+            ? Math.round(
+                (correct / totalAnswers) *
+                  100,
+              )
+            : 0;
+
+        const wordMistakes =
+          words.filter(
+            (word) => word.wrongCount > 0,
+          ).length;
+
+        const grammarMistakes =
+          grammarQuestions.filter(
+            (question) =>
+              question.wrongCount > 0,
+          ).length;
 
         setStats({
           wordCount: words.length,
-
           grammarQuestionCount:
             grammarQuestions.length,
-
-          accuracy:
-            total > 0
-              ? Math.round(
-                  (correct / total) * 100,
-                )
-              : 0,
-
+          accuracy,
           mistakeCount:
-            words.filter(
-              (word) =>
-                word.wrongCount > 0,
-            ).length +
-            grammarQuestions.filter(
-              (question) =>
-                question.wrongCount > 0,
-            ).length,
+            wordMistakes +
+            grammarMistakes,
         });
       } catch (caughtError) {
         console.error(caughtError);
@@ -123,7 +131,7 @@ export default function HomePage() {
         setError(
           caughtError instanceof Error
             ? caughtError.message
-            : "首頁資料載入失敗。",
+            : "無法載入首頁資料。",
         );
       } finally {
         setIsLoaded(true);
@@ -134,15 +142,25 @@ export default function HomePage() {
   }, [router]);
 
   async function handleLogout() {
-    await supabase.auth.signOut();
+    const { error: logoutError } =
+      await supabase.auth.signOut();
+
+    if (logoutError) {
+      setError(
+        `登出失敗：${logoutError.message}`,
+      );
+      return;
+    }
+
     router.replace("/login");
+    router.refresh();
   }
 
   if (!isLoaded) {
     return (
       <div className="flex min-h-screen items-center justify-center px-5">
         <p className="text-sm text-slate-500">
-          載入學習資料中……
+          載入雲端學習資料中……
         </p>
       </div>
     );
@@ -151,9 +169,9 @@ export default function HomePage() {
   if (error) {
     return (
       <div className="min-h-screen px-5 py-10">
-        <div className="rounded-3xl bg-red-50 p-6">
+        <section className="rounded-3xl bg-red-50 p-6">
           <h1 className="text-lg font-bold text-red-700">
-            無法載入資料
+            無法載入首頁
           </h1>
 
           <p className="mt-2 text-sm leading-6 text-red-600">
@@ -163,13 +181,13 @@ export default function HomePage() {
           <button
             type="button"
             onClick={() =>
-              router.replace("/login")
+              window.location.reload()
             }
             className="mt-5 rounded-2xl bg-red-600 px-5 py-3 font-semibold text-white"
           >
-            前往登入
+            重新載入
           </button>
-        </div>
+        </section>
       </div>
     );
   }
@@ -190,8 +208,10 @@ export default function HomePage() {
 
           <button
             type="button"
-            onClick={handleLogout}
-            className="rounded-xl bg-white/15 px-3 py-2 text-sm font-semibold"
+            onClick={() =>
+              void handleLogout()
+            }
+            className="shrink-0 rounded-xl bg-white/15 px-3 py-2 text-sm font-semibold"
           >
             登出
           </button>
@@ -259,6 +279,13 @@ export default function HomePage() {
               }
               badge="Review"
             />
+
+            <HomeCard
+              href="/practice/daily"
+              title="每日任務"
+              description="查看今天的單字、文法與錯題進度"
+              badge="Daily"
+            />
           </div>
         </section>
 
@@ -319,7 +346,9 @@ function HomeCard({
 
       <div className="mt-4 flex items-center justify-between gap-4">
         <div>
-          <h3 className="font-bold">{title}</h3>
+          <h3 className="font-bold">
+            {title}
+          </h3>
 
           <p className="mt-1 text-sm text-slate-500">
             {description}

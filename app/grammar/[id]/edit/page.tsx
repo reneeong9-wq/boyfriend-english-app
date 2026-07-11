@@ -5,17 +5,23 @@ import {
   useEffect,
   useState,
 } from "react";
+
 import {
   useParams,
   useRouter,
 } from "next/navigation";
+
 import {
   getGrammarNoteById,
   updateGrammarNote,
 } from "../../../../lib/grammarStorage";
-import type { GrammarNote } from "../../../types/grammar";
 
-type GrammarLevel = GrammarNote["level"];
+import type {
+  GrammarNote,
+} from "../../../types/grammar";
+
+type GrammarLevel =
+  GrammarNote["level"];
 
 interface GrammarForm {
   title: string;
@@ -41,10 +47,16 @@ const emptyForm: GrammarForm = {
 
 export default function EditGrammarNotePage() {
   const router = useRouter();
-  const params = useParams<{ id: string }>();
 
-  const [originalNote, setOriginalNote] =
-    useState<GrammarNote | null>(null);
+  const params =
+    useParams<{ id: string }>();
+
+  const [
+    originalNote,
+    setOriginalNote,
+  ] = useState<GrammarNote | null>(
+    null,
+  );
 
   const [form, setForm] =
     useState<GrammarForm>(emptyForm);
@@ -52,33 +64,61 @@ export default function EditGrammarNotePage() {
   const [isLoaded, setIsLoaded] =
     useState(false);
 
-  const [error, setError] = useState("");
+  const [isSaving, setIsSaving] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
 
   useEffect(() => {
-    const foundNote =
-      getGrammarNoteById(params.id);
+    async function loadNote() {
+      try {
+        setError("");
 
-    if (foundNote) {
-      setOriginalNote(foundNote);
+        const foundNote =
+          await getGrammarNoteById(
+            params.id,
+          );
 
-      setForm({
-        title: foundNote.title,
-        category: foundNote.category,
-        level: foundNote.level,
-        explanation: foundNote.explanation,
-        structure: foundNote.structure,
-        example: foundNote.example,
-        exampleTranslation:
-          foundNote.exampleTranslation,
-        commonMistake:
-          foundNote.commonMistake,
-      });
+        if (!foundNote) {
+          return;
+        }
+
+        setOriginalNote(foundNote);
+
+        setForm({
+          title: foundNote.title,
+          category: foundNote.category,
+          level: foundNote.level,
+          explanation:
+            foundNote.explanation,
+          structure:
+            foundNote.structure,
+          example: foundNote.example,
+          exampleTranslation:
+            foundNote.exampleTranslation,
+          commonMistake:
+            foundNote.commonMistake,
+        });
+      } catch (caughtError) {
+        console.error(caughtError);
+
+        setError(
+          caughtError instanceof Error
+            ? caughtError.message
+            : "無法讀取文法筆記。",
+        );
+      } finally {
+        setIsLoaded(true);
+      }
     }
 
-    setIsLoaded(true);
+    void loadNote();
   }, [params.id]);
 
-  function updateField<K extends keyof GrammarForm>(
+  function updateField<
+    K extends keyof GrammarForm,
+  >(
     field: K,
     value: GrammarForm[K],
   ) {
@@ -88,7 +128,7 @@ export default function EditGrammarNotePage() {
     }));
   }
 
-  function handleSubmit(
+  async function handleSubmit(
     event: FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
@@ -97,37 +137,63 @@ export default function EditGrammarNotePage() {
       return;
     }
 
-    if (
-      !form.title.trim() ||
-      !form.explanation.trim()
-    ) {
-      setError("請填寫文法標題與文法說明。");
+    setError("");
+
+    if (!form.title.trim()) {
+      setError("請填寫文法標題。");
       return;
     }
 
-    const updatedNote: GrammarNote = {
-      ...originalNote,
-      title: form.title.trim(),
-      category: form.category,
-      level: form.level,
-      explanation: form.explanation.trim(),
-      structure: form.structure.trim(),
-      example: form.example.trim(),
-      exampleTranslation:
-        form.exampleTranslation.trim(),
-      commonMistake:
-        form.commonMistake.trim(),
-    };
+    if (!form.explanation.trim()) {
+      setError("請填寫文法說明。");
+      return;
+    }
 
-    updateGrammarNote(updatedNote);
+    try {
+      setIsSaving(true);
 
-    router.push(`/grammar/${updatedNote.id}`);
+      const updatedNote =
+        await updateGrammarNote({
+          ...originalNote,
+          title: form.title.trim(),
+          category: form.category,
+          level: form.level,
+          explanation:
+            form.explanation.trim(),
+          structure:
+            form.structure.trim(),
+          example:
+            form.example.trim(),
+          exampleTranslation:
+            form.exampleTranslation.trim(),
+          commonMistake:
+            form.commonMistake.trim(),
+        });
+
+      router.push(
+        `/grammar/${updatedNote.id}`,
+      );
+
+      router.refresh();
+    } catch (caughtError) {
+      console.error(caughtError);
+
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "儲存文法筆記失敗。",
+      );
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   if (!isLoaded) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        載入中……
+      <div className="flex min-h-screen items-center justify-center px-5">
+        <p className="text-sm text-slate-500">
+          載入文法筆記中……
+        </p>
       </div>
     );
   }
@@ -135,17 +201,27 @@ export default function EditGrammarNotePage() {
   if (!originalNote) {
     return (
       <div className="min-h-screen px-5 py-10">
-        <p className="font-bold">
-          找不到這篇文法筆記。
-        </p>
-
         <button
           type="button"
-          onClick={() => router.push("/grammar")}
-          className="mt-5 rounded-2xl bg-indigo-600 px-5 py-3 text-white"
+          onClick={() =>
+            router.push("/grammar")
+          }
+          className="text-sm font-medium text-slate-600"
         >
-          返回文法首頁
+          ← 返回文法首頁
         </button>
+
+        <div className="mt-10 rounded-3xl border border-dashed border-slate-300 p-8 text-center">
+          <p className="font-bold">
+            找不到這篇文法筆記
+          </p>
+
+          {error && (
+            <p className="mt-3 text-sm text-red-600">
+              {error}
+            </p>
+          )}
+        </div>
       </div>
     );
   }
@@ -160,15 +236,24 @@ export default function EditGrammarNotePage() {
         ← 返回文法筆記
       </button>
 
-      <h1 className="mt-6 text-2xl font-bold">
-        編輯文法筆記
-      </h1>
+      <header className="mt-6">
+        <p className="text-sm text-slate-500">
+          Edit grammar note
+        </p>
+
+        <h1 className="mt-1 text-2xl font-bold">
+          編輯文法筆記
+        </h1>
+      </header>
 
       <form
         onSubmit={handleSubmit}
         className="mt-7 space-y-5"
       >
-        <FormField label="文法標題" required>
+        <FormField
+          label="文法標題"
+          required
+        >
           <input
             value={form.title}
             onChange={(event) =>
@@ -209,7 +294,8 @@ export default function EditGrammarNotePage() {
             onChange={(event) =>
               updateField(
                 "level",
-                event.target.value as GrammarLevel,
+                event.target
+                  .value as GrammarLevel,
               )
             }
             className="input-style"
@@ -222,7 +308,10 @@ export default function EditGrammarNotePage() {
           </select>
         </FormField>
 
-        <FormField label="文法說明" required>
+        <FormField
+          label="文法說明"
+          required
+        >
           <textarea
             value={form.explanation}
             onChange={(event) =>
@@ -265,7 +354,9 @@ export default function EditGrammarNotePage() {
 
         <FormField label="例句翻譯">
           <textarea
-            value={form.exampleTranslation}
+            value={
+              form.exampleTranslation
+            }
             onChange={(event) =>
               updateField(
                 "exampleTranslation",
@@ -299,9 +390,12 @@ export default function EditGrammarNotePage() {
 
         <button
           type="submit"
-          className="w-full rounded-2xl bg-indigo-600 px-5 py-4 font-bold text-white"
+          disabled={isSaving}
+          className="w-full rounded-2xl bg-indigo-600 px-5 py-4 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
-          儲存修改
+          {isSaving
+            ? "儲存中……"
+            : "儲存修改"}
         </button>
       </form>
     </div>
@@ -323,7 +417,9 @@ function FormField({
         {label}
 
         {required && (
-          <span className="ml-1 text-red-500">*</span>
+          <span className="ml-1 text-red-500">
+            *
+          </span>
         )}
       </span>
 

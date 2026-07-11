@@ -1,13 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import {
+  useParams,
+  useRouter,
+} from "next/navigation";
+
 import {
   deleteWord,
   getWordById,
   toggleWordFavorite,
   updateWord,
 } from "../../../lib/wordStorage";
+
 import type {
   Word,
   WordStatus,
@@ -29,7 +34,9 @@ const partOfSpeechLabel: Record<string, string> = {
 
 export default function WordDetailPage() {
   const router = useRouter();
-  const params = useParams<{ id: string }>();
+
+  const params =
+    useParams<{ id: string }>();
 
   const [word, setWord] =
     useState<Word | null>(null);
@@ -40,7 +47,8 @@ export default function WordDetailPage() {
   const [isUpdating, setIsUpdating] =
     useState(false);
 
-  const [error, setError] = useState("");
+  const [error, setError] =
+    useState("");
 
   useEffect(() => {
     async function loadWord() {
@@ -71,25 +79,27 @@ export default function WordDetailPage() {
     text: string,
     rate = 0.85,
   ) {
-    if (!("speechSynthesis" in window)) {
-      window.alert(
-        "目前瀏覽器不支援英文發音。",
+    try {
+      const speech =
+        window.speechSynthesis;
+
+      speech.cancel();
+
+      const utterance =
+        new SpeechSynthesisUtterance(text);
+
+      utterance.lang = "en-US";
+      utterance.rate = rate;
+      utterance.pitch = 1;
+
+      speech.speak(utterance);
+    } catch (caughtError) {
+      console.error(caughtError);
+
+      setError(
+        "目前瀏覽器無法播放英文發音。",
       );
-      return;
     }
-
-    window.speechSynthesis.cancel();
-
-    const utterance =
-      new SpeechSynthesisUtterance(text);
-
-    utterance.lang = "en-US";
-    utterance.rate = rate;
-    utterance.pitch = 1;
-
-    window.speechSynthesis.speak(
-      utterance,
-    );
   }
 
   async function changeStatus(
@@ -103,13 +113,16 @@ export default function WordDetailPage() {
       setIsUpdating(true);
       setError("");
 
-      const updatedWord = await updateWord({
-        ...word,
-        status,
-      });
+      const updatedWord =
+        await updateWord({
+          ...word,
+          status,
+        });
 
       setWord(updatedWord);
     } catch (caughtError) {
+      console.error(caughtError);
+
       setError(
         caughtError instanceof Error
           ? caughtError.message
@@ -130,14 +143,18 @@ export default function WordDetailPage() {
       setError("");
 
       const updatedWord =
-        await toggleWordFavorite(word.id);
+        await toggleWordFavorite(
+          word.id,
+        );
 
       setWord(updatedWord);
     } catch (caughtError) {
+      console.error(caughtError);
+
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : "收藏失敗。",
+          : "收藏單字失敗。",
       );
     } finally {
       setIsUpdating(false);
@@ -149,9 +166,10 @@ export default function WordDetailPage() {
       return;
     }
 
-    const confirmed = window.confirm(
-      `確定要刪除「${word.word}」嗎？`,
-    );
+    const confirmed =
+      window.confirm(
+        `確定要刪除「${word.word}」嗎？`,
+      );
 
     if (!confirmed) {
       return;
@@ -166,6 +184,8 @@ export default function WordDetailPage() {
       router.push("/words");
       router.refresh();
     } catch (caughtError) {
+      console.error(caughtError);
+
       setError(
         caughtError instanceof Error
           ? caughtError.message
@@ -178,7 +198,7 @@ export default function WordDetailPage() {
 
   if (!isLoaded) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center px-5">
         <p className="text-sm text-slate-500">
           載入雲端單字中……
         </p>
@@ -189,23 +209,25 @@ export default function WordDetailPage() {
   if (error && !word) {
     return (
       <div className="min-h-screen px-5 py-10">
-        <div className="rounded-3xl bg-red-50 p-6">
+        <button
+          type="button"
+          onClick={() =>
+            router.push("/words")
+          }
+          className="text-sm font-medium text-slate-600"
+        >
+          ← 返回單字庫
+        </button>
+
+        <section className="mt-10 rounded-3xl bg-red-50 p-6">
           <h1 className="font-bold text-red-700">
             無法讀取單字
           </h1>
 
-          <p className="mt-2 text-sm text-red-600">
+          <p className="mt-2 text-sm leading-6 text-red-600">
             {error}
           </p>
-
-          <button
-            type="button"
-            onClick={() => router.push("/words")}
-            className="mt-5 rounded-2xl bg-red-600 px-5 py-3 font-semibold text-white"
-          >
-            返回單字庫
-          </button>
-        </div>
+        </section>
       </div>
     );
   }
@@ -215,8 +237,10 @@ export default function WordDetailPage() {
       <div className="min-h-screen px-5 py-10">
         <button
           type="button"
-          onClick={() => router.push("/words")}
-          className="text-sm text-slate-600"
+          onClick={() =>
+            router.push("/words")
+          }
+          className="text-sm font-medium text-slate-600"
         >
           ← 返回單字庫
         </button>
@@ -225,6 +249,10 @@ export default function WordDetailPage() {
           <p className="font-bold">
             找不到這個單字
           </p>
+
+          <p className="mt-2 text-sm text-slate-500">
+            這個單字可能已經被刪除。
+          </p>
         </div>
       </div>
     );
@@ -232,10 +260,12 @@ export default function WordDetailPage() {
 
   return (
     <div className="min-h-screen px-5 pb-10 pt-8">
-      <header className="flex items-center justify-between">
+      <header className="flex items-center justify-between gap-4">
         <button
           type="button"
-          onClick={() => router.push("/words")}
+          onClick={() =>
+            router.push("/words")
+          }
           className="text-sm font-medium text-slate-600"
         >
           ← 返回單字庫
@@ -246,7 +276,7 @@ export default function WordDetailPage() {
         </span>
       </header>
 
-      <section className="mt-7 rounded-[32px] bg-indigo-600 p-6 text-white">
+      <section className="mt-7 rounded-[32px] bg-indigo-600 p-6 text-white shadow-xl shadow-indigo-100">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <p className="text-sm text-indigo-100">
@@ -266,10 +296,19 @@ export default function WordDetailPage() {
             <button
               type="button"
               disabled={isUpdating}
-              onClick={handleFavorite}
+              onClick={() =>
+                void handleFavorite()
+              }
               className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 text-2xl disabled:opacity-50"
+              aria-label={
+                word.isFavorite
+                  ? "取消收藏"
+                  : "加入收藏"
+              }
             >
-              {word.isFavorite ? "♥" : "♡"}
+              {word.isFavorite
+                ? "♥"
+                : "♡"}
             </button>
 
             <button
@@ -277,7 +316,8 @@ export default function WordDetailPage() {
               onClick={() =>
                 speakText(word.word)
               }
-              className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15"
+              className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 text-xl"
+              aria-label="播放單字發音"
             >
               🔊
             </button>
@@ -285,17 +325,17 @@ export default function WordDetailPage() {
         </div>
 
         <div className="mt-6 flex flex-wrap gap-2">
-          <span className="rounded-full bg-white/15 px-3 py-1 text-xs">
+          <span className="rounded-full bg-white/15 px-3 py-1.5 text-xs">
             {partOfSpeechLabel[
               word.partOfSpeech
             ] ?? word.partOfSpeech}
           </span>
 
-          <span className="rounded-full bg-white/15 px-3 py-1 text-xs">
+          <span className="rounded-full bg-white/15 px-3 py-1.5 text-xs">
             {word.category}
           </span>
 
-          <span className="rounded-full bg-white/15 px-3 py-1 text-xs">
+          <span className="rounded-full bg-white/15 px-3 py-1.5 text-xs">
             {statusLabel[word.status]}
           </span>
         </div>
@@ -313,34 +353,52 @@ export default function WordDetailPage() {
         </h2>
 
         <div className="mt-3 grid grid-cols-3 gap-2">
-          {(
-            [
-              ["new", "新單字"],
-              ["learning", "學習中"],
-              ["mastered", "已熟悉"],
-            ] as const
-          ).map(([status, label]) => (
-            <button
-              key={status}
-              type="button"
-              disabled={isUpdating}
-              onClick={() =>
-                changeStatus(status)
-              }
-              className={`rounded-2xl px-3 py-3 text-sm font-semibold ${
-                word.status === status
-                  ? "bg-indigo-600 text-white"
-                  : "border border-slate-200 bg-white text-slate-600"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+          <StatusButton
+            active={
+              word.status === "new"
+            }
+            disabled={isUpdating}
+            onClick={() =>
+              void changeStatus("new")
+            }
+          >
+            新單字
+          </StatusButton>
+
+          <StatusButton
+            active={
+              word.status ===
+              "learning"
+            }
+            disabled={isUpdating}
+            onClick={() =>
+              void changeStatus(
+                "learning",
+              )
+            }
+          >
+            學習中
+          </StatusButton>
+
+          <StatusButton
+            active={
+              word.status ===
+              "mastered"
+            }
+            disabled={isUpdating}
+            onClick={() =>
+              void changeStatus(
+                "mastered",
+              )
+            }
+          >
+            已熟悉
+          </StatusButton>
         </div>
       </section>
 
-      <section className="mt-6 rounded-3xl border border-slate-200 p-5">
-        <div className="flex items-center justify-between">
+      <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-5">
+        <div className="flex items-center justify-between gap-4">
           <h2 className="font-bold">
             英文例句
           </h2>
@@ -349,9 +407,12 @@ export default function WordDetailPage() {
             <button
               type="button"
               onClick={() =>
-                speakText(word.example, 0.82)
+                speakText(
+                  word.example,
+                  0.82,
+                )
               }
-              className="rounded-xl bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-600"
+              className="shrink-0 rounded-xl bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-600"
             >
               🔊 播放
             </button>
@@ -360,13 +421,17 @@ export default function WordDetailPage() {
 
         {word.example ? (
           <>
-            <p className="mt-4 text-lg font-medium leading-8">
+            <p className="mt-4 text-lg font-medium leading-8 text-slate-900">
               {word.example}
             </p>
 
-            <p className="mt-2 text-slate-500">
-              {word.exampleTranslation}
-            </p>
+            {word.exampleTranslation && (
+              <p className="mt-3 leading-7 text-slate-500">
+                {
+                  word.exampleTranslation
+                }
+              </p>
+            )}
           </>
         ) : (
           <p className="mt-4 text-sm text-slate-500">
@@ -400,7 +465,9 @@ export default function WordDetailPage() {
       <button
         type="button"
         onClick={() =>
-          router.push(`/words/${word.id}/edit`)
+          router.push(
+            `/words/${word.id}/edit`,
+          )
         }
         className="mt-8 w-full rounded-2xl bg-indigo-600 px-5 py-4 font-bold text-white"
       >
@@ -410,7 +477,9 @@ export default function WordDetailPage() {
       <button
         type="button"
         disabled={isUpdating}
-        onClick={handleDelete}
+        onClick={() =>
+          void handleDelete()
+        }
         className="mt-3 w-full rounded-2xl border border-red-200 bg-red-50 px-5 py-4 font-bold text-red-600 disabled:opacity-50"
       >
         {isUpdating
@@ -418,5 +487,32 @@ export default function WordDetailPage() {
           : "刪除這個單字"}
       </button>
     </div>
+  );
+}
+
+function StatusButton({
+  active,
+  disabled,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  disabled: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`rounded-2xl px-3 py-3 text-sm font-semibold disabled:opacity-50 ${
+        active
+          ? "bg-indigo-600 text-white"
+          : "border border-slate-200 bg-white text-slate-600"
+      }`}
+    >
+      {children}
+    </button>
   );
 }

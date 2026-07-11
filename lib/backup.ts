@@ -1,37 +1,47 @@
-import { getWords, saveWords } from "./wordStorage";
+import { getWords } from "./wordStorage";
+
 import {
   getGrammarNotes,
   getGrammarQuestions,
-  saveGrammarNotes,
-  saveGrammarQuestions,
 } from "./grammarStorage";
+
 import type { Word } from "../app/types/word";
+
 import type {
   GrammarNote,
   GrammarQuestion,
 } from "../app/types/grammar";
 
 export interface BackupData {
-  version: 1;
+  version: 2;
   exportedAt: string;
   words: Word[];
   grammarNotes: GrammarNote[];
   grammarQuestions: GrammarQuestion[];
 }
 
-export function createBackup(): BackupData {
+export async function createBackup(): Promise<BackupData> {
+  const [
+    words,
+    grammarNotes,
+    grammarQuestions,
+  ] = await Promise.all([
+    getWords(),
+    getGrammarNotes(),
+    getGrammarQuestions(),
+  ]);
+
   return {
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
-    words: getWords(),
-    grammarNotes: getGrammarNotes(),
-    grammarQuestions:
-      getGrammarQuestions(),
+    words,
+    grammarNotes,
+    grammarQuestions,
   };
 }
 
-export function downloadBackup(): void {
-  const backup = createBackup();
+export async function downloadBackup(): Promise<void> {
+  const backup = await createBackup();
 
   const file = new Blob(
     [JSON.stringify(backup, null, 2)],
@@ -53,23 +63,4 @@ export function downloadBackup(): void {
   link.remove();
 
   URL.revokeObjectURL(url);
-}
-
-export function restoreBackup(
-  backup: BackupData,
-): void {
-  if (
-    backup.version !== 1 ||
-    !Array.isArray(backup.words) ||
-    !Array.isArray(backup.grammarNotes) ||
-    !Array.isArray(backup.grammarQuestions)
-  ) {
-    throw new Error("備份檔格式不正確。");
-  }
-
-  saveWords(backup.words);
-  saveGrammarNotes(backup.grammarNotes);
-  saveGrammarQuestions(
-    backup.grammarQuestions,
-  );
 }
