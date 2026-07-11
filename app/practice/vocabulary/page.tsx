@@ -23,8 +23,7 @@ export default function VocabularyPracticePage() {
   const [selectedAnswer, setSelectedAnswer] =
     useState<string | null>(null);
 
-  const [score, setScore] =
-    useState(0);
+  const [score, setScore] = useState(0);
 
   const [isLoaded, setIsLoaded] =
     useState(false);
@@ -35,8 +34,7 @@ export default function VocabularyPracticePage() {
   const [isFinished, setIsFinished] =
     useState(false);
 
-  const [error, setError] =
-    useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     void createNewQuiz();
@@ -161,13 +159,14 @@ export default function VocabularyPracticePage() {
 
       utterance.lang = "en-US";
       utterance.rate = 0.85;
+      utterance.pitch = 1;
 
       speech.speak(utterance);
     } catch (caughtError) {
       console.error(caughtError);
 
       setError(
-        "目前無法播放英文發音。",
+        "目前瀏覽器無法播放英文發音。",
       );
     }
   }
@@ -182,7 +181,10 @@ export default function VocabularyPracticePage() {
     );
   }
 
-  if (error && questions.length === 0) {
+  if (
+    error &&
+    questions.length === 0
+  ) {
     return (
       <div className="min-h-screen px-5 py-10">
         <Link
@@ -192,7 +194,7 @@ export default function VocabularyPracticePage() {
           ← 返回練習中心
         </Link>
 
-        <div className="mt-8 rounded-3xl bg-red-50 p-6">
+        <section className="mt-8 rounded-3xl bg-red-50 p-6">
           <h1 className="font-bold text-red-700">
             無法載入單字測驗
           </h1>
@@ -210,7 +212,7 @@ export default function VocabularyPracticePage() {
           >
             重新載入
           </button>
-        </div>
+        </section>
       </div>
     );
   }
@@ -241,12 +243,12 @@ export default function VocabularyPracticePage() {
           </p>
 
           <p className="mt-3 text-sm leading-6 text-slate-500">
-            四選一遊戲至少需要四個不同中文意思的單字。
+            四選一測驗至少需要四個不同中文意思的單字。
           </p>
 
           <Link
             href="/words/new"
-            className="mt-6 inline-block rounded-2xl bg-indigo-600 px-5 py-3 font-bold text-white"
+            className="mt-6 inline-block rounded-2xl bg-violet-600 px-5 py-3 font-bold text-white"
           >
             新增單字
           </Link>
@@ -338,7 +340,7 @@ export default function VocabularyPracticePage() {
   return (
     <div className="min-h-screen px-5 pb-10 pt-8">
       <header>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <Link
             href="/practice"
             className="text-sm font-medium text-slate-600"
@@ -354,7 +356,7 @@ export default function VocabularyPracticePage() {
 
         <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-100">
           <div
-            className="h-full rounded-full bg-violet-600 transition-all"
+            className="h-full rounded-full bg-violet-600 transition-all duration-300"
             style={{
               width: `${
                 ((currentIndex + 1) /
@@ -384,7 +386,7 @@ export default function VocabularyPracticePage() {
               )
             }
             className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-50"
-            aria-label="播放發音"
+            aria-label="播放單字發音"
           >
             🔊
           </button>
@@ -501,7 +503,7 @@ export default function VocabularyPracticePage() {
             currentQuestion.correctAnswer && (
             <p className="mt-2 text-sm text-slate-600">
               正確答案：
-              <strong>
+              <strong className="ml-1">
                 {
                   currentQuestion.correctAnswer
                 }
