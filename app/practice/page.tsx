@@ -25,7 +25,7 @@ export default function PracticeHomePage() {
           description="完成單字、文法與錯題複習。"
           className="bg-blue-600 text-white"
           labelClassName="text-blue-100"
-          descriptionClassName="text-blued-100"
+          descriptionClassName="text-blue-100"
         />
 
         <PracticeCard
@@ -92,7 +92,7 @@ function PracticeCard({
   return (
     <Link
       href={href}
-      className={`block rounded-[32px] p-6 ${className}`}
+      className={`block rounded-[32px] p-6 transition-transform duration-200 hover:-translate-y-0.5 active:scale-[0.99] ${className}`}
     >
       <p
         className={`text-sm ${labelClassName}`}
